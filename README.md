@@ -4,4 +4,4 @@
 - Performed research on the different sorting algorthims for my college classes.
 
 ## How To Access
-![Click Here](https://github.com/user/repo/blob/branch/other_file.md](https://nulledc0de.github.io/sorting-visualizer/))
+[Click Here](https://nulledc0de.github.io/sorting-visualizer/)
