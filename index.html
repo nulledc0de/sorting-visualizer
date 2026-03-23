@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>simple sort visualizer</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body { background: #111; color: #eee; font-family: monospace; }
+    h1 { font-size: 1.2rem; letter-spacing: .1em; color: #0ff; }
+    .bar-wrap {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 200px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 8px;
+    }
+    .bar {
+      flex: 1;
+      background: #444;
+      border-radius: 2px 2px 0 0;
+      transition: height .06s;
+    }
+    .bar.cmp  { background: #f55; }
+    .bar.swap { background: #ff0; }
+    .bar.done { background: #0fa; }
+    select, button {
+      font-family: monospace;
+      font-size: .8rem;
+      background: #222;
+      color: #eee;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: .35rem .7rem;
+      cursor: pointer;
+    }
+    button:hover { border-color: #0ff; color: #0ff; }
+    button:disabled { opacity: .3; cursor: not-allowed; }
+    .info { font-size: .75rem; color: #888; }
+    .info span { color: #0ff; }
+  </style>
+</head>
+<body class="p-3">
+
+  <h1 class="mb-3">simple sort visualizer</h1>
+
+  <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <select id="algo">
+      <option value="bubble">bubble sort</option>
+      <option value="selection">selection sort</option>
+      <option value="insertion">insertion sort</option>
+      <option value="merge">merge sort</option>
+      <option value="quick">quick sort</option>
+    </select>
+    <button id="sortBtn">&#9654; sort</button>
+    <button id="resetBtn">&#10227; reset</button>
+    <span class="info">comparisons: <span id="cmps">0</span> &nbsp; swaps: <span id="swps">0</span></span>
+  </div>
+
+  <div class="bar-wrap" id="bars"></div>
+
+  <script>
+  (() => {
+    const SEED = [72, 18, 45, 91, 33, 60, 8, 55, 27, 80, 14, 67, 39, 5, 88,
+                  22, 50, 76, 11, 44, 95, 30, 63, 17, 82, 38, 7, 52, 24, 70];
+
+    let arr = [...SEED];
+    let cmps = 0, swps = 0;
+    let busy = false, stop = false;
+
+    const barsEl  = document.getElementById('bars');
+    const sortBtn = document.getElementById('sortBtn');
+    const resetBtn= document.getElementById('resetBtn');
+    const cmpsEl  = document.getElementById('cmps');
+    const swpsEl  = document.getElementById('swps');
+
+    const delay = () => new Promise(r => setTimeout(r, 40));
+
+    // render
+    function draw(state = {}) {
+      barsEl.innerHTML = '';
+      arr.forEach((v, i) => {
+        const b = document.createElement('div');
+        b.className = 'bar';
+        b.style.height = v + '%';
+        if (state.cmp?.includes(i))  b.classList.add('cmp');
+        if (state.swap?.includes(i)) b.classList.add('swap');
+        if (state.done?.includes(i)) b.classList.add('done');
+        barsEl.appendChild(b);
+      });
+    }
+
+    function incCmp() { cmps++; cmpsEl.textContent = cmps; }
+    function incSwp() { swps++; swpsEl.textContent = swps; }
+
+    async function finishAnim() {
+      const bars = barsEl.querySelectorAll('.bar');
+      for (const b of bars) {
+        b.className = 'bar done';
+        await new Promise(r => setTimeout(r, 18));
+      }
+    }
+
+    // algorithms
+    async function bubble() {
+      const n = arr.length;
+      for (let i = 0; i < n - 1; i++) {
+        for (let j = 0; j < n - i - 1; j++) {
+          if (stop) return;
+          incCmp();
+          draw({ cmp: [j, j+1] });
+          await delay();
+          if (arr[j] > arr[j+1]) {
+            [arr[j], arr[j+1]] = [arr[j+1], arr[j]];
+            incSwp();
+            draw({ swap: [j, j+1] });
+            await delay();
+          }
+        }
+      }
+    }
+
+    async function selection() {
+      const n = arr.length;
+      for (let i = 0; i < n - 1; i++) {
+        let min = i;
+        for (let j = i + 1; j < n; j++) {
+          if (stop) return;
+          incCmp();
+          draw({ cmp: [min, j] });
+          await delay();
+          if (arr[j] < arr[min]) min = j;
+        }
+        if (min !== i) {
+          [arr[i], arr[min]] = [arr[min], arr[i]];
+          incSwp();
+          draw({ swap: [i, min] });
+          await delay();
+        }
+      }
+    }
+
+    async function insertion() {
+      for (let i = 1; i < arr.length; i++) {
+        const key = arr[i];
+        let j = i - 1;
+        while (j >= 0) {
+          if (stop) return;
+          incCmp();
+          draw({ cmp: [j, j+1] });
+          await delay();
+          if (arr[j] > key) {
+            arr[j+1] = arr[j];
+            incSwp();
+            j--;
+          } else break;
+        }
+        arr[j+1] = key;
+        draw({});
+        await delay();
+      }
+    }
+
+    async function merge() {
+      await mergeHelper(0, arr.length - 1);
+    }
+    
+    async function mergeHelper(l, r) {
+      if (stop || l >= r) return;
+      const m = Math.floor((l + r) / 2);
+      await mergeHelper(l, m);
+      await mergeHelper(m + 1, r);
+      const left = arr.slice(l, m+1), right = arr.slice(m+1, r+1);
+      let i = 0, j = 0, k = l;
+      while (i < left.length && j < right.length) {
+        if (stop) return;
+        incCmp();
+        draw({ cmp: [l+i, m+1+j] });
+        await delay();
+        arr[k++] = left[i] <= right[j] ? left[i++] : (incSwp(), right[j++]);
+      }
+      while (i < left.length) arr[k++] = left[i++];
+      while (j < right.length) arr[k++] = right[j++];
+    }
+
+    async function quick() {
+      await quickHelper(0, arr.length - 1);
+    }
+    
+    async function quickHelper(lo, hi) {
+      if (stop || lo >= hi) return;
+      const p = await partition(lo, hi);
+      await quickHelper(lo, p - 1);
+      await quickHelper(p + 1, hi);
+    }
+    
+    async function partition(lo, hi) {
+      const pivot = arr[hi];
+      let i = lo - 1;
+      for (let j = lo; j < hi; j++) {
+        if (stop) return i + 1;
+        incCmp();
+        draw({ cmp: [j, hi] });
+        await delay();
+        if (arr[j] <= pivot) {
+          i++;
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+          incSwp();
+          draw({ swap: [i, j] });
+          await delay();
+        }
+      }
+      [arr[i+1], arr[hi]] = [arr[hi], arr[i+1]];
+      return i + 1;
+    }
+
+    const fns = { bubble, selection, insertion, merge, quick };
+
+    // controls
+    sortBtn.addEventListener('click', async () => {
+      if (busy) return;
+      busy = true; stop = false;
+      cmps = 0; swps = 0;
+      cmpsEl.textContent = 0; swpsEl.textContent = 0;
+      sortBtn.disabled = true;
+      await fns[document.getElementById('algo').value]();
+      if (!stop) await finishAnim();
+      busy = false;
+      sortBtn.disabled = false;
+    });
+
+    resetBtn.addEventListener('click', () => {
+      stop = true;
+      busy = false;
+      arr = [...SEED];
+      cmps = 0; swps = 0;
+      cmpsEl.textContent = 0; swpsEl.textContent = 0;
+      sortBtn.disabled = false;
+      draw();
+    });
+
+    draw();
+  })();
+  </script>
+</body>
+</html>
